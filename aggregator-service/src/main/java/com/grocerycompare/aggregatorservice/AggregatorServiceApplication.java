@@ -1,4 +1,4 @@
-package com.grocerycompare.aggregator_service;
+package com.grocerycompare.aggregatorservice;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
