@@ -20,8 +20,10 @@ public class CompareController {
     @GetMapping("/compare")
     public List<ProviderResponse> compare(
             @RequestParam String city,
-            @RequestParam String item) {
+            @RequestParam String item,
+            @RequestParam(defaultValue = "price") String sortBy,
+            @RequestParam(defaultValue = "false") boolean onlyAvailable) {
 
-        return aggregatorService.compare(city, item);
+        return aggregatorService.compare(city, item, sortBy, onlyAvailable);
     }
 }
