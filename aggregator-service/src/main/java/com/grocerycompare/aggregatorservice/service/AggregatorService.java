@@ -5,15 +5,19 @@ import com.grocerycompare.aggregatorservice.kafka.SearchEventProducer;
 import com.grocerycompare.aggregatorservice.model.ProviderResponse;
 import com.grocerycompare.aggregatorservice.model.SearchEvent;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AggregatorService {
 
     private final List<ProviderService> providers;
@@ -30,8 +34,31 @@ public class AggregatorService {
             throw new InvalidRequestException("Item cannot be empty");
         }
 
-        System.out.println("Cache MISS — fetching from providers for: " + city + " - " + item);
+        log.info("Cache MISS — fetching concurrently from {} providers for: {} in {}",
+                providers.size(), item, city);
 
+        publishSearchEvent(city, item, sortBy, onlyAvailable);
+
+        List<CompletableFuture<ProviderResponse>> futures = providers.stream()
+                .map(provider -> CompletableFuture
+                        .supplyAsync(() -> provider.getPrice(city, item))
+                        .orTimeout(3, TimeUnit.SECONDS)
+                        .exceptionally(ex -> {
+                            log.warn("Provider {} timed out or failed: {}",
+                                    provider.getProviderName(), ex.getMessage());
+                            return null;
+                        }))
+                .toList();
+
+        return futures.stream()
+                .map(CompletableFuture::join)
+                .filter(response -> response != null)
+                .filter(response -> !onlyAvailable || response.isAvailable())
+                .sorted(getComparator(sortBy))
+                .toList();
+    }
+
+    private void publishSearchEvent(String city, String item, String sortBy, boolean onlyAvailable) {
         SearchEvent event = SearchEvent.builder()
                 .city(city)
                 .item(item)
@@ -39,14 +66,7 @@ public class AggregatorService {
                 .onlyAvailable(onlyAvailable)
                 .searchedAt(LocalDateTime.now())
                 .build();
-
         searchEventProducer.publishSearchEvent(event);
-
-        return providers.stream()
-                .map(provider -> provider.getPrice(city, item))
-                .filter(response -> !onlyAvailable || response.isAvailable())
-                .sorted(getComparator(sortBy))
-                .toList();
     }
 
     private Comparator<ProviderResponse> getComparator(String sortBy) {

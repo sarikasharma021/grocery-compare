@@ -1,10 +1,13 @@
-package com.grocerycompare.aggregatorservice.service.impl;
+package com.grocerycompare.aggregatorservice.impl;
 
 import com.grocerycompare.aggregatorservice.model.ProviderResponse;
 import com.grocerycompare.aggregatorservice.service.ProviderService;
 import org.springframework.stereotype.Service;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
+@Slf4j
 public class AmazonFreshService implements ProviderService {
 
     @Override
@@ -15,9 +18,15 @@ public class AmazonFreshService implements ProviderService {
                 .city(city)
                 .price(66.0)
                 .available(true)
-                .deliveryMinutes(10)
+                    .deliveryMinutes(10)
                 .build();
     }
+
+    public ProviderResponse fallback(String city, String item, Throwable t) {
+        log.warn("Amazon circuit breaker triggered: {}", t.getMessage());
+        return null;
+    }
+
 
     @Override
     public String getProviderName() {
