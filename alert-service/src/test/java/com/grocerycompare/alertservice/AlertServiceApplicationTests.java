@@ -1,4 +1,4 @@
-package com.grocerycompare.alert_service;
+package com.grocerycompare.alertservice;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

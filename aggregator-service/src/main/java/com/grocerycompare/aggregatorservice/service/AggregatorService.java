@@ -1,11 +1,14 @@
 package com.grocerycompare.aggregatorservice.service;
 
 import com.grocerycompare.aggregatorservice.exception.InvalidRequestException;
+import com.grocerycompare.aggregatorservice.kafka.SearchEventProducer;
 import com.grocerycompare.aggregatorservice.model.ProviderResponse;
+import com.grocerycompare.aggregatorservice.model.SearchEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 
@@ -14,6 +17,7 @@ import java.util.List;
 public class AggregatorService {
 
     private final List<ProviderService> providers;
+    private final SearchEventProducer searchEventProducer;
 
     @Cacheable(value = "compareCache", key = "#city + '-' + #item + '-' + #sortBy + '-' + #onlyAvailable")
     public List<ProviderResponse> compare(String city, String item, String sortBy, boolean onlyAvailable) {
@@ -27,6 +31,16 @@ public class AggregatorService {
         }
 
         System.out.println("Cache MISS — fetching from providers for: " + city + " - " + item);
+
+        SearchEvent event = SearchEvent.builder()
+                .city(city)
+                .item(item)
+                .sortBy(sortBy)
+                .onlyAvailable(onlyAvailable)
+                .searchedAt(LocalDateTime.now())
+                .build();
+
+        searchEventProducer.publishSearchEvent(event);
 
         return providers.stream()
                 .map(provider -> provider.getPrice(city, item))
